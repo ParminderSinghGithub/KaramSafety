@@ -559,3 +559,122 @@
 
 # model_size_kb = os.path.getsize("logistic_regression_model.pkl") / 1024
 # print(f"\nModel Size: {model_size_kb:.2f} KB")
+
+
+
+
+# model = LogisticRegression(
+#     penalty='l1', dual=False, tol=1e-3, C=0.089, fit_intercept=True,
+#     intercept_scaling=0.80, solver='saga', max_iter=100,
+#     multi_class='multinomial', random_state=43, n_jobs=-1
+# )
+
+# model.fit(X_train_final, y_train_processed)
+
+# y_pred_engineered = model.predict(X_test_final)
+# accuracy_engineered = accuracy_score(y_test_processed, y_pred_engineered)
+# cm_engineered = confusion_matrix(y_test_processed, y_pred_engineered)
+# classification_rep_engineered = classification_report(y_test_processed, y_pred_engineered, output_dict=True)
+
+# print("Engineered Features Model Performance")
+# print(f"Test Accuracy: {accuracy_engineered:.6f}")
+# print(f"Test Samples: {len(y_test_processed):,}")
+
+# results_df_engineered = pd.DataFrame(classification_rep_engineered).transpose()
+# print("\nClassification Report:")
+# print(results_df_engineered.round(4))
+
+
+# def extract_statistical_features(X):
+#     features = np.column_stack([
+#         np.mean(X, axis=1), np.std(X, axis=1), np.var(X, axis=1),
+#         np.median(X, axis=1), np.min(X, axis=1), np.max(X, axis=1),
+#         np.percentile(X, 25, axis=1), np.percentile(X, 75, axis=1),
+#         stats.skew(X, axis=1), stats.kurtosis(X, axis=1)
+#     ])
+#     return features
+
+# def extract_frequency_features(X):
+#     fft_vals = np.abs(fft(X, axis=1))
+#     n_half = X.shape[1] // 2
+#     fft_vals = fft_vals[:, :n_half]
+    
+#     features = np.column_stack([
+#         np.sum(fft_vals, axis=1), np.mean(fft_vals, axis=1),
+#         np.std(fft_vals, axis=1), np.max(fft_vals, axis=1)
+#     ])
+#     return features
+
+# def extract_temporal_features(X):
+#     zero_crossings = np.sum(np.diff(np.sign(X), axis=1) != 0, axis=1)
+#     first_diff = np.diff(X, axis=1)
+    
+#     features = np.column_stack([
+#         zero_crossings,
+#         np.mean(first_diff, axis=1),
+#         np.std(first_diff, axis=1),
+#         np.sum(X**2, axis=1)
+#     ])
+#     return features
+
+# def extract_all_features(X):
+#     stat_features = extract_statistical_features(X)
+#     freq_features = extract_frequency_features(X)
+#     temp_features = extract_temporal_features(X)
+#     return np.column_stack([stat_features, freq_features, temp_features])
+
+# X_train_features = extract_all_features(X_train_processed)
+# X_test_features = extract_all_features(X_test_processed)
+
+# print(f"Training features extracted: {X_train_features.shape}")
+# print(f"Test features extracted: {X_test_features.shape}")
+
+# X_train_combined = np.column_stack([X_train_processed, X_train_features])
+# X_test_combined = np.column_stack([X_test_processed, X_test_features])
+
+# X_train_combined = np.nan_to_num(X_train_combined, nan=0.0, posinf=1e6, neginf=-1e6)
+# X_test_combined = np.nan_to_num(X_test_combined, nan=0.0, posinf=1e6, neginf=-1e6)
+
+# original_feature_names = ['ax', 'ay', 'az', 'gx', 'gy', 'gz', 'mx', 'my', 'mz', 'p']
+# stat_feature_names = ['Mean', 'Std', 'Variance', 'Median', 'Min', 'Max', '25th Percentile', '75th Percentile', 'Skewness', 'Kurtosis']
+# freq_feature_names = ['FFT Sum', 'FFT Mean', 'FFT Std', 'FFT Max']
+# temp_feature_names = ['Zero Crossings', 'First Diff Mean', 'First Diff Std', 'Signal Energy']
+
+# all_feature_names = original_feature_names + stat_feature_names + freq_feature_names + temp_feature_names
+
+# print(f"Training features: {X_train_combined.shape}")
+# print(f"Test features: {X_test_combined.shape}")
+# for i, name in enumerate(all_feature_names):
+#     print(f"{i:2d}: {name}")
+
+
+# selector = SelectKBest(mutual_info_classif, k=10)
+# X_train_selected = selector.fit_transform(X_train_combined, y_train_processed)
+# X_test_selected = selector.transform(X_test_combined)
+
+# scaler = StandardScaler()
+# X_train_final = scaler.fit_transform(X_train_selected)
+# X_test_final = scaler.transform(X_test_selected)
+
+# model_engineered = RandomForestClassifier(
+#     n_estimators=10,
+#     criterion='gini',
+#     max_depth=5,
+#     min_samples_split=10,
+#     min_samples_leaf=5,
+#     min_weight_fraction_leaf=0.0,
+#     max_features='sqrt',
+#     max_leaf_nodes=None,
+#     min_impurity_decrease=0.0,
+#     bootstrap=True,
+#     oob_score=False,
+#     n_jobs=-1,
+#     random_state=43,
+#     verbose=0,
+#     warm_start=False,
+#     class_weight=None,
+#     ccp_alpha=0.01,
+#     max_samples=None
+# )
+
+# model_engineered.fit(X_train_final, y_train_processed)
