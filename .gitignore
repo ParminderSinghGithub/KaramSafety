@@ -1,10 +1,8 @@
 *v3
 *.ipynb_checkpoints
 *venv
-*data_recorder/data_received
+*data_received
 *data_recorder/count_datapoints.py
 *data_recorder/data_recorder.py
 *module_send
-*data_received_/recorded_data_12344
-*data_received_/recorded_data_12345
-*data_received_F
+*data_received_v
