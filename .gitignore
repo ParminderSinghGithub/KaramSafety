@@ -2,7 +2,8 @@
 *.ipynb_checkpoints
 *venv
 *data_received
-*data_recorder/count_datapoints.py
-*data_recorder/data_recorder.py
+*data_recorder
 *module_send
 *data_received_v
+*__pycache__
+*live_testing_data
