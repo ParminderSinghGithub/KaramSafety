@@ -22,37 +22,50 @@ UDP_IP = "192.168.0.102"
 BATCH_SIZE = 51
 FEATURE_COUNT = 10  # ax, ay, az, gx, gy, gz, mx, my, mz, p
 
-activity = "idle"
-# activity = "with_hook_climbing_up"
-# activity = "with_hook_descending_down"
-# activity = "without_hook_climbing_up"
-# activity = "without_hook_descending_down"
+# ==== Select Activity ====
+activity_options = [
+    "idle",
+    "with_hook_climbing_up",
+    "with_hook_descending_down",
+    "without_hook_climbing_up",
+    "without_hook_descending_down"
+]
 
-base_log_dir = f"live_testing_data/{activity}"
-os.makedirs(base_log_dir, exist_ok=True)
+print("Select the activity to record/predict:")
+for i, act in enumerate(activity_options):
+    print(f"{i + 1}. {act}")
 
+selected_idx = int(input("Enter choice (1-5): ")) - 1
+activity = activity_options[selected_idx]
+print(f"\nSelected activity: {activity}")
+
+# ==== Setup Paths and Buffers ====
+base_log_dir = "live_testing_data"
 buffers = {name: [] for name in UDP_PORTS}
 data_logs = {name: [] for name in UDP_PORTS}
 
-loggers = {
-    name: open(f"{base_log_dir}/pred_{name}.csv", "w")
-    for name in UDP_PORTS
-}
-for f in loggers.values():
-    f.write("timestamp,prediction\n")
+# Create log writers per module
+loggers = {}
+for name in UDP_PORTS:
+    module_dir = os.path.join(base_log_dir, name)
+    os.makedirs(os.path.join(module_dir, activity), exist_ok=True)
 
+    log_path = os.path.join(module_dir, f"pred_{name}.csv")
+    loggers[name] = open(log_path, "w")
+    loggers[name].write("timestamp,prediction\n")
 
+# ==== CSV Saving ====
 def save_data_csv(name, data_rows, prediction):
     timestamp = datetime.now().strftime("%d%m%Y_%H%M%S")
-    folder_path = os.path.join(base_log_dir, name)
+    folder_path = os.path.join(base_log_dir, name, activity)
     os.makedirs(folder_path, exist_ok=True)
-    file_path = os.path.join(folder_path, f"{timestamp}_{prediction}.csv")
 
+    file_path = os.path.join(folder_path, f"{timestamp}_{prediction}.csv")
     with open(file_path, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerows(data_rows)
-    print(f"[{name}] Data written to {file_path}")
 
+    print(f"[{name}] Data written to {file_path}")
 
 # ==== Real-Time Handler ====
 def handle_module(name, port):
@@ -78,7 +91,7 @@ def handle_module(name, port):
         if len(buffers[name]) == BATCH_SIZE:
             try:
                 batch = np.array(buffers[name])
-                buffers[name] = []  # Reset buffer
+                buffers[name] = []
 
                 aggregated = np.concatenate([
                     np.mean(batch, axis=0),
@@ -113,7 +126,6 @@ def handle_module(name, port):
             except Exception as e:
                 print(f"[{name}] Error during prediction: {e}")
 
-
 # ==== Launch Threads ====
 threads = []
 for name, port in UDP_PORTS.items():
@@ -122,7 +134,7 @@ for name, port in UDP_PORTS.items():
     t.start()
     threads.append(t)
 
-print("\nReal-time prediction and recording started for both modules. Press Ctrl+C to stop.")
+print("\nReal-time prediction and recording started for both modules. Press Ctrl+C to stop.\n")
 
 try:
     while True:
