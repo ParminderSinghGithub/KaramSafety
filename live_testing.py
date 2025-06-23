@@ -9,6 +9,7 @@ import csv
 
 # ==== Load Trained Components ====
 model = joblib.load("model_files/model_lr.pkl")
+scaler_agg = joblib.load("model_files/scaler_aggregated.pkl")
 scaler = joblib.load("model_files/scaler_lr.pkl")
 selector = joblib.load("model_files/selector_lr.pkl")
 label_encoder = joblib.load("model_files/label_encoder.pkl")
@@ -44,15 +45,42 @@ base_log_dir = "live_testing_data"
 buffers = {name: [] for name in UDP_PORTS}
 data_logs = {name: [] for name in UDP_PORTS}
 
-# Create log writers per module
+# ==== Create log writers per module ====
 loggers = {}
 for name in UDP_PORTS:
     module_dir = os.path.join(base_log_dir, name)
     os.makedirs(os.path.join(module_dir, activity), exist_ok=True)
 
     log_path = os.path.join(module_dir, f"pred_{name}.csv")
-    loggers[name] = open(log_path, "w")
-    loggers[name].write("timestamp,prediction\n")
+    file_exists = os.path.exists(log_path)
+    loggers[name] = open(log_path, "a")
+    
+    if not file_exists:
+        loggers[name].write("timestamp,prediction\n")
+
+# ==== Reusable Inference Function ====
+def process_and_predict(batch, model, selector, scaler_agg, scaler_final, label_encoder):
+    aggregated = np.concatenate([
+        np.mean(batch, axis=0),
+        np.std(batch, axis=0),
+        np.min(batch, axis=0),
+        np.max(batch, axis=0)
+    ])  # (40,)
+
+    aggregated_scaled = scaler_agg.transform(aggregated.reshape(1, -1))  # (1, 40)
+
+    engineered = extract_all_features(batch)  # (51, 18)
+    engineered_mean = np.mean(engineered, axis=0).reshape(1, -1)  # (1, 18)
+
+    full_features = np.concatenate([aggregated_scaled, engineered_mean], axis=1)  # (1, 58)
+    full_features = np.nan_to_num(full_features, nan=0.0, posinf=1e6, neginf=-1e6)
+
+    selected = selector.transform(full_features)
+    final_scaled = scaler.transform(selected)
+
+    pred = model.predict(final_scaled)[0]
+    label = label_encoder.inverse_transform([pred])[0]
+    return label
 
 # ==== CSV Saving ====
 def save_data_csv(name, data_rows, prediction):
@@ -65,8 +93,6 @@ def save_data_csv(name, data_rows, prediction):
         writer = csv.writer(file)
         writer.writerows(data_rows)
 
-    print(f"[{name}] Data written to {file_path}")
-
 # ==== Real-Time Handler ====
 def handle_module(name, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -78,53 +104,33 @@ def handle_module(name, port):
             data, _ = sock.recvfrom(1024)
             decoded = data.decode().strip()
             values = list(map(float, decoded.split(",")))[:FEATURE_COUNT]
-        except Exception as e:
-            print(f"[{name}] Invalid data skipped: {decoded} | Error: {e}")
+        except:
             continue
 
         if len(values) != FEATURE_COUNT:
+            print(f"[{name}] Skipping: got {len(values)} values")
             continue
 
         buffers[name].append(values)
         data_logs[name].append(values)
+        # print(f"[{name}] Batch length: {len(buffers[name])}")  # TEMP LOG
 
         if len(buffers[name]) == BATCH_SIZE:
             try:
                 batch = np.array(buffers[name])
                 buffers[name] = []
 
-                aggregated = np.concatenate([
-                    np.mean(batch, axis=0),
-                    np.std(batch, axis=0),
-                    np.min(batch, axis=0),
-                    np.max(batch, axis=0)
-                ])
-
-                engineered = extract_all_features(batch)
-                if engineered.ndim == 1:
-                    engineered = engineered.reshape(1, -1)
-                else:
-                    engineered = engineered.mean(axis=0).reshape(1, -1)
-
-                final_features = np.concatenate([aggregated, engineered.flatten()])
-                final_features = final_features.reshape(1, -1)
-
-                final_features = np.nan_to_num(final_features, nan=0.0, posinf=1e6, neginf=-1e6)
-                selected = selector.transform(final_features)
-                scaled = scaler.transform(selected)
-
-                pred = model.predict(scaled)[0]
-                label = label_encoder.inverse_transform([pred])[0]
+                label = process_and_predict(batch, model, selector, scaler_agg, scaler, label_encoder)
 
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                print(f"[{name}] {timestamp} → {label}")
                 loggers[name].write(f"{timestamp},{label}\n")
                 loggers[name].flush()
 
                 save_data_csv(name, data_logs[name][-BATCH_SIZE:], label)
 
             except Exception as e:
-                print(f"[{name}] Error during prediction: {e}")
+                print(f"[{name}] Prediction error: {e}")
+                continue
 
 # ==== Launch Threads ====
 threads = []
