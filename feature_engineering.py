@@ -1,5 +1,3 @@
-# feature_engineering.py
-
 import numpy as np
 from scipy import stats
 from scipy.fft import fft
